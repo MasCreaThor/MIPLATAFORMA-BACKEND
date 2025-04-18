@@ -4,17 +4,15 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from './modules/config/config.module';
 import { DatabaseModule } from './modules/database/database.module';
-import { PeopleModule } from './modules/people/people.module';
-import { UsersModule } from './modules/users/users.module';
-import { AuthModule } from './modules/auth/auth.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { ResourcesModule } from './modules/resources/resources.module';
 
 @Module({
   imports: [
     ConfigModule,
     DatabaseModule,
-    PeopleModule,
-    UsersModule,
-    AuthModule,
+    CategoriesModule,
+    ResourcesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
