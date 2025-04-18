@@ -1,42 +1,61 @@
 // src/modules/users/users.controller.ts
-
-import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Param, 
+  Put, 
+  Delete, 
+  UseGuards,
+  Query,
+  BadRequestException
+} from '@nestjs/common';
 import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @UseGuards(JwtAuthGuard)
-  @Get()
-  findAll() {
-    return this.usersService.findAll();
+  @Post('register')
+  async register(@Body() createUserDto: CreateUserDto) {
+    try {
+      return await this.usersService.register(createUserDto);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  getProfile(@CurrentUser() user: any) {
-    return this.usersService.findById(user.userId);
+  @Get()
+  async findAll(@Query() query: any) {
+    return this.usersService.findAll(query);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  async findOne(@Param('id') id: string) {
+    return this.usersService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Put(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string) {
     return this.usersService.remove(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('by-email/:email')
+  async findByEmail(@Param('email') email: string) {
+    return this.usersService.findByEmail(email);
   }
 }

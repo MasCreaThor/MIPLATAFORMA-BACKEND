@@ -1,127 +1,128 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+// src/modules/auth/auth.service.ts
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
+import { Document } from 'mongoose';
+import { UsersService } from '../users/users.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  async validateUser(username: string, password: string): Promise<any> {
-    const user = await this.usersService.findByUsername(username);
-    if (user && await bcrypt.compare(password, user.password)) {
-      // Actualizar último login
-      if (user._id) {
-        await this.usersService.updateLastLogin(user._id.toString());
-      }
+  async register(registerDto: RegisterDto) {
+    const user = await this.usersService.register(registerDto);
+    
+    // Generate tokens
+    const tokens = this.generateTokens({
+      userId: user.id || user['_id']?.toString() || '',
+      email: user.email,
+    });
+    
+    return {
+      ...user,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    };
+  }
+
+  async validateUser(email: string, password: string): Promise<any> {
+    try {
+      const user = await this.usersService.findByEmailWithPassword(email);
+      const isPasswordValid = await bcrypt.compare(password, user.password);
       
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...result } = user;
-      return result;
+      if (isPasswordValid) {
+        // Usar un enfoque más seguro para eliminar la contraseña
+        let userObj: Record<string, any>;
+        
+        if (user instanceof Document) {
+          userObj = user.toObject();
+        } else {
+          userObj = { ...user as Object };
+        }
+        
+        // Eliminar la contraseña del objeto
+        const { password: _, ...result } = userObj;
+        return result;
+      }
+      return null;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return null;
+      }
+      throw error;
     }
-    return null;
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.username, loginDto.password);
+    const user = await this.validateUser(loginDto.email, loginDto.password);
+    
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    const userId = user._id?.toString();
-    if (!userId) {
-      throw new UnauthorizedException('User ID not found');
-    }
-
-    const payload = { username: user.username, sub: userId, roles: user.roles };
+    
+    // Generate tokens
+    const tokens = this.generateTokens({
+      userId: user.id || user['_id']?.toString() || '',
+      email: user.email,
+    });
+    
+    // Get the people profile
+    const profile = await this.usersService.findOne(user.id || user['_id']?.toString() || '');
     
     return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: userId,
-        username: user.username,
-        roles: user.roles,
-      },
+      user: profile,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
     };
   }
 
-  async register(registerDto: RegisterDto) {
-    // Verificar si el usuario ya existe
-    const existingUser = await this.usersService.findByUsername(registerDto.username);
-    if (existingUser) {
-      throw new UnauthorizedException('Username already exists');
-    }
-
-    const existingEmail = await this.usersService.findByEmail(registerDto.email);
-    if (existingEmail) {
-      throw new UnauthorizedException('Email already exists');
-    }
-
-    // Hashear la contraseña
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-
-    // Crear la entidad People primero
-    const people = await this.usersService.createPeople({
-      firstName: registerDto.firstName,
-      lastName: registerDto.lastName,
-      email: registerDto.email,
-      phoneNumber: registerDto.phoneNumber,
-    });
-
-    if (!people._id) {
-      throw new UnauthorizedException('Failed to create people profile');
-    }
-
-    // Crear el usuario con referencia a People
-    const newUser = await this.usersService.create({
-      username: registerDto.username,
-      password: hashedPassword,
-      peopleId: people._id as any,  // Usamos 'as any' para evitar el error de tipo
-      roles: registerDto.roles || ['user'],
-      isActive: registerDto.isActive !== undefined ? registerDto.isActive : true,
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...result } = newUser;
-    
-    const userId = result._id?.toString();
-    if (!userId) {
-      throw new UnauthorizedException('User ID not found');
-    }
-    
-    // Generar token JWT
-    const payload = { username: result.username, sub: userId, roles: result.roles };
-    
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: userId,
-        username: result.username,
-        roles: result.roles,
-      },
-    };
+  async getProfile(userId: string) {
+    const user = await this.usersService.findOne(userId);
+    return user;
   }
 
-  // Método para renovar token
-  async refreshToken(userId: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+  async refreshToken(refreshToken: string) {
+    try {
+      // Verify refresh token
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      });
+      
+      // Check if user exists
+      const user = await this.usersService.findOne(payload.userId);
+      
+      // Generate new tokens
+      const tokens = this.generateTokens({
+        userId: payload.userId,
+        email: payload.email,
+      });
+      
+      return {
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
+  }
 
-    const payload = { 
-      username: user.username, 
-      sub: user._id?.toString(), 
-      roles: user.roles 
-    };
+  private generateTokens(payload: { userId: string; email: string }) {
+    const accessToken = this.jwtService.sign(payload);
+    
+    const refreshToken = this.jwtService.sign(payload, {
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') + 's',
+    });
     
     return {
-      access_token: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken,
     };
   }
 }

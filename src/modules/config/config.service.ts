@@ -1,5 +1,4 @@
-// Ruta: src/modules/config/config.service.ts
-
+// src/modules/config/config.service.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
@@ -15,25 +14,31 @@ export class ConfigService {
     return value;
   }
 
-  getJwtConfig() {
-    return {
-      secret: this.configService.get<string>('jwt.secret'),
-      expirationTime: this.configService.get<number>('jwt.expirationTime'),
-      refreshExpirationTime: this.configService.get<number>('jwt.refreshExpirationTime'),
-    };
+  getPort(): number {
+    return this.get<number>('PORT') || 3001;
   }
 
-  getMongoConfig() {
-    return {
-      uri: this.configService.get<string>('database.uri'),
-    };
+  getMongoUri(): string {
+    return this.get<string>('MONGODB_URI');
   }
 
-  getAppConfig() {
-    return {
-      port: this.configService.get<number>('app.port'),
-      environment: this.configService.get<string>('app.environment'),
-      apiPrefix: this.configService.get<string>('app.apiPrefix'),
-    };
+  getJwtSecret(): string {
+    return this.get<string>('JWT_SECRET');
+  }
+
+  getJwtExpiresIn(): string {
+    return `${this.get<string>('JWT_EXPIRATION')}s`;
+  }
+
+  getJwtRefreshExpiresIn(): string {
+    return `${this.get<string>('JWT_REFRESH_EXPIRATION')}s`;
+  }
+
+  getApiPrefix(): string {
+    return this.get<string>('API_PREFIX') || 'api';
+  }
+
+  getCorsOrigin(): string {
+    return this.get<string>('CORS_ORIGIN') || 'http://localhost:3000';
   }
 }

@@ -1,26 +1,17 @@
 // src/modules/users/dto/create-user.dto.ts
-
-import { IsString, IsNotEmpty, IsMongoId, IsArray, IsBoolean, IsOptional } from 'class-validator';
-import { Types } from 'mongoose';
+import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
 
 export class CreateUserDto {
-  @IsString()
-  @IsNotEmpty()
-  username: string;
+  @IsEmail()
+  email: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MinLength(6)
   password: string;
 
-  @IsMongoId()
-  @IsNotEmpty()
-  peopleId: Types.ObjectId | string;
+  @IsString()
+  firstName: string;
 
-  @IsArray()
-  @IsOptional()
-  roles?: string[];
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
+  @IsString()
+  lastName: string;
 }
