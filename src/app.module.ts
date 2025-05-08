@@ -6,6 +6,7 @@ import { ConfigModule } from './modules/config/config.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ResourcesModule } from './modules/resources/resources.module';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ResourcesModule } from './modules/resources/resources.module';
     DatabaseModule,
     CategoriesModule,
     ResourcesModule,
+    KnowledgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
