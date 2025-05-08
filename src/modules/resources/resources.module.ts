@@ -5,6 +5,7 @@ import { ResourcesService } from './resources.service';
 import { ResourcesController } from './resources.controller';
 import { Resource, ResourceSchema } from './schemas/resource.schema';
 import { FileStorageModule } from '../file-storage/file-storage.module';
+import { TagsModule } from '../tags/tags.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { FileStorageModule } from '../file-storage/file-storage.module';
       { name: Resource.name, schema: ResourceSchema },
     ]),
     FileStorageModule,
+    TagsModule,
   ],
   controllers: [ResourcesController],
   providers: [ResourcesService],

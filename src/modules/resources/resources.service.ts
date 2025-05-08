@@ -6,11 +6,13 @@ import { Resource, ResourceDocument } from './schemas/resource.schema';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { UpdateResourceDto } from './dto/update-resource.dto';
 import { FilterResourcesDto } from './dto/filter-resources.dto';
+import { TagsService } from '../tags/tags.service';
 
 @Injectable()
 export class ResourcesService {
   constructor(
     @InjectModel(Resource.name) private resourceModel: Model<ResourceDocument>,
+    private tagsService: TagsService
   ) {}
 
   async create(createResourceDto: CreateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
@@ -18,6 +20,12 @@ export class ResourcesService {
       ...createResourceDto,
       peopleId,
     });
+    
+    // Procesar las etiquetas si existen
+    if (createResourceDto.tags && createResourceDto.tags.length > 0) {
+      await this.processAndSaveTags(createResourceDto.tags, peopleId);
+    }
+    
     return createdResource.save();
   }
 
@@ -68,6 +76,11 @@ export class ResourcesService {
   }
 
   async update(id: string, updateResourceDto: UpdateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
+    // Procesar las etiquetas si existen
+    if (updateResourceDto.tags && updateResourceDto.tags.length > 0) {
+      await this.processAndSaveTags(updateResourceDto.tags, peopleId);
+    }
+    
     const updatedResource = await this.resourceModel.findOneAndUpdate(
       { _id: id, peopleId },
       { $set: updateResourceDto },
@@ -120,5 +133,13 @@ export class ResourcesService {
       tags: { $in: tags }, 
       peopleId 
     }).exec();
+  }
+
+  async processAndSaveTags(tags: string[], peopleId: Types.ObjectId): Promise<void> {
+    if (!tags || tags.length === 0) {
+      return;
+    }
+    
+    await this.tagsService.bulkCreateOrUpdate(tags, peopleId);
   }
 }

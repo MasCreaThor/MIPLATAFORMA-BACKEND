@@ -6,11 +6,13 @@ import { KnowledgeItem, KnowledgeItemDocument } from './schemas/knowledge-item.s
 import { CreateKnowledgeItemDto } from './dto/create-knowledge-item.dto';
 import { UpdateKnowledgeItemDto } from './dto/update-knowledge-item.dto';
 import { FilterKnowledgeItemsDto } from './dto/filter-knowledge-items.dto';
+import { TagsService } from '../tags/tags.service';
 
 @Injectable()
 export class KnowledgeService {
   constructor(
     @InjectModel(KnowledgeItem.name) private knowledgeItemModel: Model<KnowledgeItemDocument>,
+    private tagsService: TagsService
   ) {}
 
   async create(createKnowledgeItemDto: CreateKnowledgeItemDto, peopleId: Types.ObjectId): Promise<KnowledgeItem> {
@@ -18,6 +20,12 @@ export class KnowledgeService {
       ...createKnowledgeItemDto,
       peopleId,
     });
+    
+    // Procesar las etiquetas si existen
+    if (createKnowledgeItemDto.tags && createKnowledgeItemDto.tags.length > 0) {
+      await this.processAndSaveTags(createKnowledgeItemDto.tags, peopleId);
+    }
+    
     return createdKnowledgeItem.save();
   }
 
@@ -78,6 +86,11 @@ export class KnowledgeService {
   }
 
   async update(id: string, updateKnowledgeItemDto: UpdateKnowledgeItemDto, peopleId: Types.ObjectId): Promise<KnowledgeItem> {
+    // Procesar las etiquetas si existen
+    if (updateKnowledgeItemDto.tags && updateKnowledgeItemDto.tags.length > 0) {
+      await this.processAndSaveTags(updateKnowledgeItemDto.tags, peopleId);
+    }
+    
     const updatedKnowledgeItem = await this.knowledgeItemModel.findOneAndUpdate(
       { _id: id, peopleId },
       { $set: updateKnowledgeItemDto },
@@ -175,5 +188,13 @@ export class KnowledgeService {
     }
     
     return updatedKnowledgeItem;
+  }
+
+  async processAndSaveTags(tags: string[], peopleId: Types.ObjectId): Promise<void> {
+    if (!tags || tags.length === 0) {
+      return;
+    }
+    
+    await this.tagsService.bulkCreateOrUpdate(tags, peopleId);
   }
 }
