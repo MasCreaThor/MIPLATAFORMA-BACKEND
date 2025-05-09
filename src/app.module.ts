@@ -8,6 +8,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { ResourcesModule } from './modules/resources/resources.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { TagsModule } from './modules/tags/tags.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { TagsModule } from './modules/tags/tags.module';
     ResourcesModule,
     KnowledgeModule,
     TagsModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
