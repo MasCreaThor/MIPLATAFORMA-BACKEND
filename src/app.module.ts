@@ -10,6 +10,7 @@ import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ActivityModule } from './modules/activity/activity.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     TagsModule,
     ProjectsModule,
     DashboardModule,
+    ActivityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
