@@ -6,11 +6,16 @@ import { Resource, ResourceDocument } from './schemas/resource.schema';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { UpdateResourceDto } from './dto/update-resource.dto';
 import { FilterResourcesDto } from './dto/filter-resources.dto';
+import { TagsService } from '../tags/tags.service';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class ResourcesService {
   constructor(
     @InjectModel(Resource.name) private resourceModel: Model<ResourceDocument>,
+    private tagsService: TagsService,
+    private activityService: ActivityService
   ) {}
 
   async create(createResourceDto: CreateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
@@ -18,7 +23,26 @@ export class ResourcesService {
       ...createResourceDto,
       peopleId,
     });
-    return createdResource.save();
+    
+    // Procesar las etiquetas si existen
+    if (createResourceDto.tags && createResourceDto.tags.length > 0) {
+      await this.processAndSaveTags(createResourceDto.tags, peopleId);
+    }
+    
+    const savedResource = await createdResource.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.RESOURCE,
+      savedResource._id as Types.ObjectId,
+      {},
+      savedResource.title,
+      savedResource.tags || []
+    );
+    
+    return savedResource;
   }
 
   async findAll(peopleId: Types.ObjectId, filterDto?: FilterResourcesDto): Promise<Resource[]> {
@@ -64,10 +88,26 @@ export class ResourcesService {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
     
+    // Registrar la actividad de vista
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.RESOURCE,
+      new Types.ObjectId(id),
+      {},
+      resource.title,
+      resource.tags || []
+    );
+    
     return resource;
   }
 
   async update(id: string, updateResourceDto: UpdateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
+    // Procesar las etiquetas si existen
+    if (updateResourceDto.tags && updateResourceDto.tags.length > 0) {
+      await this.processAndSaveTags(updateResourceDto.tags, peopleId);
+    }
+    
     const updatedResource = await this.resourceModel.findOneAndUpdate(
       { _id: id, peopleId },
       { $set: updateResourceDto },
@@ -78,10 +118,24 @@ export class ResourcesService {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(updatedResource._id as string),
+      {},
+      updatedResource.title,
+      updatedResource.tags || []
+    );
+    
     return updatedResource;
   }
 
   async remove(id: string, peopleId: Types.ObjectId): Promise<Resource> {
+    // Primero encontrar el recurso para tener la información antes de eliminarlo
+    const resource = await this.findOne(id, peopleId);
+    
     const deletedResource = await this.resourceModel.findOneAndDelete({ 
       _id: id, 
       peopleId 
@@ -90,6 +144,17 @@ export class ResourcesService {
     if (!deletedResource) {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(id),
+      {}, 
+      resource.title,
+      resource.tags || []
+    );
     
     return deletedResource;
   }
@@ -120,5 +185,13 @@ export class ResourcesService {
       tags: { $in: tags }, 
       peopleId 
     }).exec();
+  }
+
+  async processAndSaveTags(tags: string[], peopleId: Types.ObjectId): Promise<void> {
+    if (!tags || tags.length === 0) {
+      return;
+    }
+    
+    await this.tagsService.bulkCreateOrUpdate(tags, peopleId);
   }
 }
