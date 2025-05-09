@@ -10,6 +10,7 @@ import { Resource, ResourceSchema } from '../resources/schemas/resource.schema';
 import { KnowledgeItem, KnowledgeItemSchema } from '../knowledge/schemas/knowledge-item.schema';
 import { Project, ProjectSchema } from '../projects/schemas/project.schema';
 import { Tag, TagSchema } from '../tags/schemas/tag.schema';
+import { ActivityModule } from '../activity/activity.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { Tag, TagSchema } from '../tags/schemas/tag.schema';
       { name: Project.name, schema: ProjectSchema },
       { name: Tag.name, schema: TagSchema },
     ]),
+    ActivityModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService],

@@ -1,7 +1,7 @@
 // src/modules/dashboard/dashboard.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, PipelineStage } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { 
   DashboardConfig, 
@@ -12,6 +12,8 @@ import {
 import { UpdateDashboardConfigDto } from './dto/update-dashboard-config.dto';
 import { AddWidgetDto, UpdateWidgetDto } from './dto/widget.dto';
 import { DashboardStatsDto, TimeSeriesData, RecentActivityData } from './dto/dashboard-stats.dto';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class DashboardService {
@@ -21,6 +23,7 @@ export class DashboardService {
     @InjectModel('KnowledgeItem') private knowledgeItemModel: Model<any>,
     @InjectModel('Project') private projectModel: Model<any>,
     @InjectModel('Tag') private tagModel: Model<any>,
+    private activityService: ActivityService
   ) {}
 
   async getOrCreateDashboardConfig(peopleId: Types.ObjectId): Promise<DashboardConfigDocument> {
@@ -31,7 +34,19 @@ export class DashboardService {
     
     // If not found, create default config
     if (!dashboardConfig) {
-      return this.createDefaultDashboardConfig(peopleId);
+      const newConfig = await this.createDefaultDashboardConfig(peopleId);
+      
+      // Registrar la actividad de creación
+      await this.activityService.trackActivity(
+        peopleId,
+        ActivityAction.CREATE,
+        EntityType.DASHBOARD,
+        new Types.ObjectId(newConfig._id as string),
+        { action: 'createDefaultConfig' },
+        'Dashboard Configuration'
+      );
+      
+      return newConfig;
     }
     
     return dashboardConfig;
@@ -108,7 +123,22 @@ export class DashboardService {
       dashboardConfig.theme = updateDto.theme;
     }
     
-    return dashboardConfig.save();
+    const updatedConfig = await dashboardConfig.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(updatedConfig._id as string),
+      { 
+        action: 'updateConfig',
+        updatedFields: Object.keys(updateDto)
+      },
+      'Dashboard Configuration'
+    );
+    
+    return updatedConfig;
   }
 
   async addWidget(peopleId: Types.ObjectId, addWidgetDto: AddWidgetDto): Promise<DashboardConfigDocument> {
@@ -126,7 +156,24 @@ export class DashboardService {
     // Add widget to the configuration
     dashboardConfig.widgets.push(newWidget);
     
-    return dashboardConfig.save();
+    const updatedConfig = await dashboardConfig.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(updatedConfig._id as string),
+      { 
+        action: 'addWidget',
+        widgetId: newWidget.id,
+        widgetType: newWidget.type,
+        widgetTitle: newWidget.title
+      },
+      'Dashboard Configuration'
+    );
+    
+    return updatedConfig;
   }
 
   async updateWidget(
@@ -153,16 +200,56 @@ export class DashboardService {
         : dashboardConfig.widgets[widgetIndex].configuration,
     };
     
-    return dashboardConfig.save();
+    const updatedConfig = await dashboardConfig.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(updatedConfig._id as string),
+      { 
+        action: 'updateWidget',
+        widgetId: widgetId,
+        updatedFields: Object.keys(updateWidgetDto)
+      },
+      'Dashboard Configuration'
+    );
+    
+    return updatedConfig;
   }
 
   async removeWidget(peopleId: Types.ObjectId, widgetId: string): Promise<DashboardConfigDocument> {
     const dashboardConfig = await this.getOrCreateDashboardConfig(peopleId);
     
+    // Find widget info before removing
+    const widget = dashboardConfig.widgets.find(w => w.id === widgetId);
+    
+    if (!widget) {
+      throw new NotFoundException(`Widget with ID ${widgetId} not found`);
+    }
+    
     // Remove widget
     dashboardConfig.widgets = dashboardConfig.widgets.filter(widget => widget.id !== widgetId);
     
-    return dashboardConfig.save();
+    const updatedConfig = await dashboardConfig.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(updatedConfig._id as string),
+      { 
+        action: 'removeWidget',
+        widgetId: widgetId,
+        widgetType: widget.type,
+        widgetTitle: widget.title
+      },
+      'Dashboard Configuration'
+    );
+    
+    return updatedConfig;
   }
 
   async getDashboardStats(peopleId: Types.ObjectId): Promise<DashboardStatsDto> {
@@ -217,6 +304,21 @@ export class DashboardService {
     // Get recent activity (last 10 items)
     const recentActivity = this.generateRecentActivity(
       [...resources, ...knowledgeItems, ...projects]
+    );
+    
+    // Registrar la actividad de consulta de estadísticas
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(), // Usar un ID temporal para esta acción
+      { 
+        action: 'viewStats',
+        resourceCount: resourceStats.total,
+        knowledgeCount: knowledgeStats.total,
+        projectCount: projectStats.total
+      },
+      'Dashboard Statistics'
     );
     
     return {
@@ -301,6 +403,20 @@ export class DashboardService {
         throw new Error(`Invalid item type: ${type}`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(), // Usar un ID temporal para esta acción
+      { 
+        action: 'viewRecentItems',
+        itemType: type,
+        limit: limit
+      },
+      `Recent ${type}`
+    );
+    
     // Query the most recent items
     return model.find({ peopleId })
       .sort({ createdAt: -1 })
@@ -322,6 +438,20 @@ export class DashboardService {
       default:
         throw new Error(`Invalid item type: ${type}`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.DASHBOARD,
+      new Types.ObjectId(), // Usar un ID temporal para esta acción
+      { 
+        action: 'viewMostUsedItems',
+        itemType: type,
+        limit: limit
+      },
+      `Most Used ${type}`
+    );
     
     // Query the most used items
     return model.find({ peopleId })

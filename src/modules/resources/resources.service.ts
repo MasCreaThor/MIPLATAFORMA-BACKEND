@@ -7,12 +7,15 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { UpdateResourceDto } from './dto/update-resource.dto';
 import { FilterResourcesDto } from './dto/filter-resources.dto';
 import { TagsService } from '../tags/tags.service';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class ResourcesService {
   constructor(
     @InjectModel(Resource.name) private resourceModel: Model<ResourceDocument>,
-    private tagsService: TagsService
+    private tagsService: TagsService,
+    private activityService: ActivityService
   ) {}
 
   async create(createResourceDto: CreateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
@@ -26,7 +29,20 @@ export class ResourcesService {
       await this.processAndSaveTags(createResourceDto.tags, peopleId);
     }
     
-    return createdResource.save();
+    const savedResource = await createdResource.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.RESOURCE,
+      savedResource._id as Types.ObjectId,
+      {},
+      savedResource.title,
+      savedResource.tags || []
+    );
+    
+    return savedResource;
   }
 
   async findAll(peopleId: Types.ObjectId, filterDto?: FilterResourcesDto): Promise<Resource[]> {
@@ -72,6 +88,17 @@ export class ResourcesService {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
     
+    // Registrar la actividad de vista
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.RESOURCE,
+      new Types.ObjectId(id),
+      {},
+      resource.title,
+      resource.tags || []
+    );
+    
     return resource;
   }
 
@@ -91,10 +118,24 @@ export class ResourcesService {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(updatedResource._id as string),
+      {},
+      updatedResource.title,
+      updatedResource.tags || []
+    );
+    
     return updatedResource;
   }
 
   async remove(id: string, peopleId: Types.ObjectId): Promise<Resource> {
+    // Primero encontrar el recurso para tener la información antes de eliminarlo
+    const resource = await this.findOne(id, peopleId);
+    
     const deletedResource = await this.resourceModel.findOneAndDelete({ 
       _id: id, 
       peopleId 
@@ -103,6 +144,17 @@ export class ResourcesService {
     if (!deletedResource) {
       throw new NotFoundException(`Resource with ID ${id} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(id),
+      {}, 
+      resource.title,
+      resource.tags || []
+    );
     
     return deletedResource;
   }

@@ -11,6 +11,8 @@ import { FilterProjectsDto } from './dto/filter-projects.dto';
 import { ProjectResourceDto } from './dto/project-resource.dto';
 import { ProjectKnowledgeDto } from './dto/project-knowledge.dto';
 import { TagsService } from '../tags/tags.service';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class ProjectsService {
@@ -18,7 +20,8 @@ export class ProjectsService {
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(ProjectResource.name) private projectResourceModel: Model<ProjectResourceDocument>,
     @InjectModel(ProjectKnowledge.name) private projectKnowledgeModel: Model<ProjectKnowledgeDocument>,
-    private tagsService: TagsService
+    private tagsService: TagsService,
+    private activityService: ActivityService
   ) {}
 
   async create(createProjectDto: CreateProjectDto, peopleId: Types.ObjectId): Promise<ProjectDocument> {
@@ -32,7 +35,20 @@ export class ProjectsService {
       await this.processAndSaveTags(createProjectDto.tags, peopleId);
     }
     
-    return createdProject.save();
+    const savedProject = await createdProject.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(savedProject._id as string),
+      { status: savedProject.status },
+      savedProject.name,
+      savedProject.tags || []
+    );
+    
+    return savedProject;
   }
 
   async findAll(peopleId: Types.ObjectId, filterDto?: FilterProjectsDto): Promise<ProjectDocument[]> {
@@ -92,6 +108,17 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
     
+    // Registrar la actividad de vista
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.PROJECT,
+      new Types.ObjectId(project._id as string),
+      { status: project.status },
+      project.name,
+      project.tags || []
+    );
+    
     return project;
   }
 
@@ -110,6 +137,17 @@ export class ProjectsService {
     if (!updatedProject) {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(updatedProject._id as string),
+      { status: updatedProject.status },
+      updatedProject.name,
+      updatedProject.tags || []
+    );
     
     return updatedProject;
   }
@@ -134,6 +172,17 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.PROJECT,
+      new Types.ObjectId(id),
+      { status: project.status },
+      project.name,
+      project.tags || []
+    );
+    
     return deletedProject;
   }
 
@@ -144,7 +193,7 @@ export class ProjectsService {
     peopleId: Types.ObjectId
   ): Promise<ProjectResourceDocument> {
     // Verificar que el proyecto existe y pertenece al usuario
-    await this.findOne(projectId, peopleId);
+    const project = await this.findOne(projectId, peopleId);
     
     // Verificar si ya existe la relación
     const existingRelation = await this.projectResourceModel.findOne({
@@ -156,7 +205,22 @@ export class ProjectsService {
       // Si ya existe, actualizamos las notas
       if (projectResourceDto.notes !== undefined) {
         existingRelation.notes = projectResourceDto.notes;
-        return existingRelation.save();
+        const savedRelation = await existingRelation.save();
+        
+        // Registrar la actividad
+        await this.activityService.trackActivity(
+          peopleId,
+          ActivityAction.UPDATE,
+          EntityType.PROJECT,
+          new Types.ObjectId(projectId),
+          { 
+            action: 'updateResourceNotes',
+            resourceId: projectResourceDto.resourceId.toString()
+          },
+          project.name
+        );
+        
+        return savedRelation;
       }
       return existingRelation;
     }
@@ -168,7 +232,22 @@ export class ProjectsService {
       notes: projectResourceDto.notes || '',
     });
     
-    return newProjectResource.save();
+    const savedRelation = await newProjectResource.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      { 
+        action: 'addResource',
+        resourceId: projectResourceDto.resourceId.toString()
+      },
+      project.name
+    );
+    
+    return savedRelation;
   }
 
   async removeResource(
@@ -177,12 +256,27 @@ export class ProjectsService {
     peopleId: Types.ObjectId
   ): Promise<boolean> {
     // Verificar que el proyecto existe y pertenece al usuario
-    await this.findOne(projectId, peopleId);
+    const project = await this.findOne(projectId, peopleId);
     
     const result = await this.projectResourceModel.deleteOne({
       projectId: new Types.ObjectId(projectId),
       resourceId: new Types.ObjectId(resourceId),
     }).exec();
+    
+    // Registrar la actividad solo si se eliminó algo
+    if (result.deletedCount > 0) {
+      await this.activityService.trackActivity(
+        peopleId,
+        ActivityAction.UPDATE,
+        EntityType.PROJECT,
+        new Types.ObjectId(projectId),
+        { 
+          action: 'removeResource',
+          resourceId: resourceId
+        },
+        project.name
+      );
+    }
     
     return result.deletedCount > 0;
   }
@@ -203,7 +297,7 @@ export class ProjectsService {
     peopleId: Types.ObjectId
   ): Promise<ProjectKnowledgeDocument> {
     // Verificar que el proyecto existe y pertenece al usuario
-    await this.findOne(projectId, peopleId);
+    const project = await this.findOne(projectId, peopleId);
     
     // Verificar si ya existe la relación
     const existingRelation = await this.projectKnowledgeModel.findOne({
@@ -215,7 +309,22 @@ export class ProjectsService {
       // Si ya existe, actualizamos las notas
       if (projectKnowledgeDto.notes !== undefined) {
         existingRelation.notes = projectKnowledgeDto.notes;
-        return existingRelation.save();
+        const savedRelation = await existingRelation.save();
+        
+        // Registrar la actividad
+        await this.activityService.trackActivity(
+          peopleId,
+          ActivityAction.UPDATE,
+          EntityType.PROJECT,
+          new Types.ObjectId(projectId),
+          { 
+            action: 'updateKnowledgeNotes',
+            knowledgeItemId: projectKnowledgeDto.knowledgeItemId.toString()
+          },
+          project.name
+        );
+        
+        return savedRelation;
       }
       return existingRelation;
     }
@@ -227,7 +336,22 @@ export class ProjectsService {
       notes: projectKnowledgeDto.notes || '',
     });
     
-    return newProjectKnowledge.save();
+    const savedRelation = await newProjectKnowledge.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      { 
+        action: 'addKnowledgeItem',
+        knowledgeItemId: projectKnowledgeDto.knowledgeItemId.toString()
+      },
+      project.name
+    );
+    
+    return savedRelation;
   }
 
   async removeKnowledgeItem(
@@ -236,12 +360,27 @@ export class ProjectsService {
     peopleId: Types.ObjectId
   ): Promise<boolean> {
     // Verificar que el proyecto existe y pertenece al usuario
-    await this.findOne(projectId, peopleId);
+    const project = await this.findOne(projectId, peopleId);
     
     const result = await this.projectKnowledgeModel.deleteOne({
       projectId: new Types.ObjectId(projectId),
       knowledgeItemId: new Types.ObjectId(knowledgeItemId),
     }).exec();
+    
+    // Registrar la actividad solo si se eliminó algo
+    if (result.deletedCount > 0) {
+      await this.activityService.trackActivity(
+        peopleId,
+        ActivityAction.UPDATE,
+        EntityType.PROJECT,
+        new Types.ObjectId(projectId),
+        { 
+          action: 'removeKnowledgeItem',
+          knowledgeItemId: knowledgeItemId
+        },
+        project.name
+      );
+    }
     
     return result.deletedCount > 0;
   }
@@ -280,6 +419,19 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      { 
+        action: 'addMember',
+        memberId: memberId
+      },
+      project.name
+    );
+    
     return updatedProject;
   }
 
@@ -301,6 +453,19 @@ export class ProjectsService {
     if (!updatedProject) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      { 
+        action: 'removeMember',
+        memberId: memberId
+      },
+      project.name
+    );
     
     return updatedProject;
   }

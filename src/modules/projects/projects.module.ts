@@ -7,6 +7,7 @@ import { Project, ProjectSchema } from './schemas/project.schema';
 import { ProjectResource, ProjectResourceSchema } from './schemas/project-resource.schema';
 import { ProjectKnowledge, ProjectKnowledgeSchema } from './schemas/project-knowledge.schema';
 import { TagsModule } from '../tags/tags.module';
+import { ActivityModule } from '../activity/activity.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { TagsModule } from '../tags/tags.module';
       { name: ProjectKnowledge.name, schema: ProjectKnowledgeSchema },
     ]),
     TagsModule,
+    ActivityModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],
