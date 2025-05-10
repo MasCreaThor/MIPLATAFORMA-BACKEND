@@ -6,13 +6,15 @@ import { Category, CategoryDocument } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectModel(Category.name) private categoryModel: Model<CategoryDocument>,
-    private activityService: ActivityService
+    private activityService: ActivityService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto, peopleId: Types.ObjectId): Promise<Category> {
@@ -31,6 +33,16 @@ export class CategoriesService {
       new Types.ObjectId(savedCategory._id as string),
       { parentId: savedCategory.parentId?.toString() || null },
       savedCategory.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.CATEGORY,
+      new Types.ObjectId(savedCategory._id as string),
+      savedCategory.name,
+      { parentId: savedCategory.parentId?.toString() || null }
     );
     
     return savedCategory;
@@ -88,6 +100,16 @@ export class CategoriesService {
       updatedCategory.name
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.CATEGORY,
+      new Types.ObjectId(updatedCategory._id as string),
+      updatedCategory.name,
+      { parentId: updatedCategory.parentId?.toString() || null }
+    );
+    
     return updatedCategory;
   }
 
@@ -112,6 +134,16 @@ export class CategoriesService {
       new Types.ObjectId(id),
       { parentId: category.parentId?.toString() || null },
       category.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.CATEGORY,
+      new Types.ObjectId(id),
+      category.name,
+      { parentId: category.parentId?.toString() || null }
     );
     
     return deletedCategory;

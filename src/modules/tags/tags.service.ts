@@ -6,11 +6,16 @@ import { Tag, TagDocument } from './schemas/tag.schema';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { UpdateTagDto } from './dto/update-tag.dto';
 import { FilterTagsDto } from './dto/filter-tags.dto';
+import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class TagsService {
   constructor(
     @InjectModel(Tag.name) private tagModel: Model<TagDocument>,
+    private activityService: ActivityService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createTagDto: CreateTagDto, peopleId: Types.ObjectId): Promise<TagDocument> {
@@ -29,7 +34,29 @@ export class TagsService {
       peopleId,
     });
     
-    return createdTag.save();
+    const savedTag = await createdTag.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.TAG,
+      new Types.ObjectId(savedTag._id as string),
+      { autoCreated: false, usageCount: savedTag.usageCount },
+      savedTag.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.TAG,
+      new Types.ObjectId(savedTag._id as string),
+      savedTag.name,
+      { usageCount: savedTag.usageCount }
+    );
+    
+    return savedTag;
   }
 
   async findAll(peopleId: Types.ObjectId, filterDto?: FilterTagsDto): Promise<TagDocument[]> {
@@ -75,6 +102,16 @@ export class TagsService {
       throw new NotFoundException(`Tag with ID ${id} not found`);
     }
     
+    // Registrar la actividad de vista
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.TAG,
+      new Types.ObjectId(tag._id as string),
+      { usageCount: tag.usageCount },
+      tag.name
+    );
+    
     return tag;
   }
 
@@ -115,10 +152,33 @@ export class TagsService {
       throw new NotFoundException(`Tag with ID ${id} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.TAG,
+      new Types.ObjectId(updatedTag._id as string),
+      { usageCount: updatedTag.usageCount },
+      updatedTag.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.TAG,
+      new Types.ObjectId(updatedTag._id as string),
+      updatedTag.name,
+      { usageCount: updatedTag.usageCount }
+    );
+    
     return updatedTag;
   }
 
   async remove(id: string, peopleId: Types.ObjectId): Promise<TagDocument> {
+    // Primero encontrar el tag para tener información antes de eliminarlo
+    const tag = await this.findOne(id, peopleId);
+    
     const deletedTag = await this.tagModel.findOneAndDelete({ 
       _id: id, 
       peopleId 
@@ -127,6 +187,26 @@ export class TagsService {
     if (!deletedTag) {
       throw new NotFoundException(`Tag with ID ${id} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.TAG,
+      new Types.ObjectId(id),
+      { usageCount: tag.usageCount },
+      tag.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.TAG,
+      new Types.ObjectId(id),
+      tag.name,
+      { usageCount: tag.usageCount }
+    );
     
     return deletedTag;
   }
@@ -145,7 +225,7 @@ export class TagsService {
     return tag;
   }
 
-  async incrementUsageCountByName(name: string, peopleId: Types.ObjectId): Promise<TagDocument> {
+  async incrementUsageCountByName(name: string, peopleId: Types.ObjectId): Promise<TagDocument | null> {
     try {
       // Try to find the tag first
       const existingTag = await this.tagModel.findOne({
@@ -175,7 +255,22 @@ export class TagsService {
           usageCount: 1, // Initialize with count 1 since it's being used
         });
         
-        return await newTag.save();
+        const savedTag = await newTag.save();
+        
+        // Registrar la actividad de creación automática
+        await this.activityService.trackActivity(
+          peopleId,
+          ActivityAction.CREATE,
+          EntityType.TAG,
+          new Types.ObjectId(savedTag._id as string),
+          { autoCreated: true, usageCount: 1 },
+          savedTag.name
+        );
+        
+        // No generamos notificación para tags creados automáticamente
+        // para evitar spam cuando se crean muchos tags a la vez
+        
+        return savedTag;
       }
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -204,7 +299,9 @@ export class TagsService {
       try {
         // Try to increment usage count for existing tag
         const existingTag = await this.incrementUsageCountByName(name, peopleId);
-        tags.push(existingTag);
+        if (existingTag) {
+          tags.push(existingTag);
+        }
       } catch (error) {
         // If there's an error, just continue with the next tag
         console.error(`Error processing tag "${name}":`, error);

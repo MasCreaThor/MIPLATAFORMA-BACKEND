@@ -11,6 +11,7 @@ import { TagsModule } from './modules/tags/tags.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ActivityModule } from './modules/activity/activity.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ActivityModule } from './modules/activity/activity.module';
     ProjectsModule,
     DashboardModule,
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

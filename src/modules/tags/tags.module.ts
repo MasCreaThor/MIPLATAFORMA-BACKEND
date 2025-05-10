@@ -5,6 +5,7 @@ import { TagsService } from './tags.service';
 import { TagsController } from './tags.controller';
 import { Tag, TagSchema } from './schemas/tag.schema';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ActivityModule } from '../activity/activity.module';
       { name: Tag.name, schema: TagSchema },
     ]),
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [TagsController],
   providers: [TagsService],

@@ -7,12 +7,17 @@ import { CreateKnowledgeItemDto } from './dto/create-knowledge-item.dto';
 import { UpdateKnowledgeItemDto } from './dto/update-knowledge-item.dto';
 import { FilterKnowledgeItemsDto } from './dto/filter-knowledge-items.dto';
 import { TagsService } from '../tags/tags.service';
+import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
 export class KnowledgeService {
   constructor(
     @InjectModel(KnowledgeItem.name) private knowledgeItemModel: Model<KnowledgeItemDocument>,
-    private tagsService: TagsService
+    private tagsService: TagsService,
+    private activityService: ActivityService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createKnowledgeItemDto: CreateKnowledgeItemDto, peopleId: Types.ObjectId): Promise<KnowledgeItem> {
@@ -26,7 +31,30 @@ export class KnowledgeService {
       await this.processAndSaveTags(createKnowledgeItemDto.tags, peopleId);
     }
     
-    return createdKnowledgeItem.save();
+    const savedItem = await createdKnowledgeItem.save();
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(savedItem._id as string),
+      { type: savedItem.type },
+      savedItem.title,
+      savedItem.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(savedItem._id as string),
+      savedItem.title,
+      { type: savedItem.type }
+    );
+    
+    return savedItem;
   }
 
   async findAll(peopleId: Types.ObjectId, filterDto?: FilterKnowledgeItemsDto): Promise<KnowledgeItem[]> {
@@ -82,6 +110,17 @@ export class KnowledgeService {
       throw new NotFoundException(`Knowledge item with ID ${id} not found`);
     }
     
+    // Registrar la actividad de vista
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.VIEW,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(knowledgeItem._id as string),
+      { type: knowledgeItem.type },
+      knowledgeItem.title,
+      knowledgeItem.tags || []
+    );
+    
     return knowledgeItem;
   }
 
@@ -101,10 +140,34 @@ export class KnowledgeService {
       throw new NotFoundException(`Knowledge item with ID ${id} not found`);
     }
     
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(updatedKnowledgeItem._id as string),
+      { type: updatedKnowledgeItem.type },
+      updatedKnowledgeItem.title,
+      updatedKnowledgeItem.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(updatedKnowledgeItem._id as string),
+      updatedKnowledgeItem.title,
+      { type: updatedKnowledgeItem.type }
+    );
+    
     return updatedKnowledgeItem;
   }
 
   async remove(id: string, peopleId: Types.ObjectId): Promise<KnowledgeItem> {
+    // Primero encontrar el item para tener la información antes de eliminarlo
+    const knowledgeItem = await this.findOne(id, peopleId);
+    
     const deletedKnowledgeItem = await this.knowledgeItemModel.findOneAndDelete({ 
       _id: id, 
       peopleId 
@@ -113,6 +176,27 @@ export class KnowledgeService {
     if (!deletedKnowledgeItem) {
       throw new NotFoundException(`Knowledge item with ID ${id} not found`);
     }
+    
+    // Registrar la actividad
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(id),
+      { type: knowledgeItem.type },
+      knowledgeItem.title,
+      knowledgeItem.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(id),
+      knowledgeItem.title,
+      { type: knowledgeItem.type }
+    );
     
     return deletedKnowledgeItem;
   }
@@ -173,6 +257,20 @@ export class KnowledgeService {
       throw new NotFoundException(`Knowledge item with ID ${id} not found`);
     }
     
+    // Registrar la actividad de relación
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(updatedKnowledgeItem._id as string),
+      {
+        action: 'addRelatedItem',
+        relatedItemId: relatedItemId
+      },
+      updatedKnowledgeItem.title,
+      updatedKnowledgeItem.tags || []
+    );
+    
     return updatedKnowledgeItem;
   }
 
@@ -186,6 +284,20 @@ export class KnowledgeService {
     if (!updatedKnowledgeItem) {
       throw new NotFoundException(`Knowledge item with ID ${id} not found`);
     }
+    
+    // Registrar la actividad de eliminación de relación
+    await this.activityService.trackActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.KNOWLEDGE_ITEM,
+      new Types.ObjectId(updatedKnowledgeItem._id as string),
+      { 
+        action: 'removeRelatedItem',
+        relatedItemId: relatedItemId
+      },
+      updatedKnowledgeItem.title,
+      updatedKnowledgeItem.tags || []
+    );
     
     return updatedKnowledgeItem;
   }

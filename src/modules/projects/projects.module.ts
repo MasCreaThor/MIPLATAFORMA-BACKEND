@@ -8,6 +8,7 @@ import { ProjectResource, ProjectResourceSchema } from './schemas/project-resour
 import { ProjectKnowledge, ProjectKnowledgeSchema } from './schemas/project-knowledge.schema';
 import { TagsModule } from '../tags/tags.module';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ActivityModule } from '../activity/activity.module';
     ]),
     TagsModule,
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

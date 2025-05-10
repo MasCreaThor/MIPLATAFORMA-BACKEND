@@ -6,6 +6,7 @@ import { KnowledgeController } from './knowledge.controller';
 import { KnowledgeItem, KnowledgeItemSchema } from './schemas/knowledge-item.schema';
 import { TagsModule } from '../tags/tags.module';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ActivityModule } from '../activity/activity.module';
     ]),
     TagsModule,
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [KnowledgeController],
   providers: [KnowledgeService],
