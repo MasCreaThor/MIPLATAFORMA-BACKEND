@@ -8,6 +8,7 @@ import { UpdateResourceDto } from './dto/update-resource.dto';
 import { FilterResourcesDto } from './dto/filter-resources.dto';
 import { TagsService } from '../tags/tags.service';
 import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
@@ -15,7 +16,8 @@ export class ResourcesService {
   constructor(
     @InjectModel(Resource.name) private resourceModel: Model<ResourceDocument>,
     private tagsService: TagsService,
-    private activityService: ActivityService
+    private activityService: ActivityService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createResourceDto: CreateResourceDto, peopleId: Types.ObjectId): Promise<Resource> {
@@ -40,6 +42,16 @@ export class ResourcesService {
       {},
       savedResource.title,
       savedResource.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.RESOURCE,
+      savedResource._id as Types.ObjectId,
+      savedResource.title,
+      { type: savedResource.type }
     );
     
     return savedResource;
@@ -129,6 +141,16 @@ export class ResourcesService {
       updatedResource.tags || []
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(updatedResource._id as string),
+      updatedResource.title,
+      { type: updatedResource.type }
+    );
+    
     return updatedResource;
   }
 
@@ -154,6 +176,16 @@ export class ResourcesService {
       {}, 
       resource.title,
       resource.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.RESOURCE,
+      new Types.ObjectId(id),
+      resource.title,
+      { type: resource.type }
     );
     
     return deletedResource;

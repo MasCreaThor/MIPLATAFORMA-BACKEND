@@ -12,6 +12,7 @@ import { ProjectResourceDto } from './dto/project-resource.dto';
 import { ProjectKnowledgeDto } from './dto/project-knowledge.dto';
 import { TagsService } from '../tags/tags.service';
 import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityAction, EntityType } from '../activity/schemas/activity.schema';
 
 @Injectable()
@@ -21,7 +22,8 @@ export class ProjectsService {
     @InjectModel(ProjectResource.name) private projectResourceModel: Model<ProjectResourceDocument>,
     @InjectModel(ProjectKnowledge.name) private projectKnowledgeModel: Model<ProjectKnowledgeDocument>,
     private tagsService: TagsService,
-    private activityService: ActivityService
+    private activityService: ActivityService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createProjectDto: CreateProjectDto, peopleId: Types.ObjectId): Promise<ProjectDocument> {
@@ -46,6 +48,20 @@ export class ProjectsService {
       { status: savedProject.status },
       savedProject.name,
       savedProject.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.CREATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(savedProject._id as string),
+      savedProject.name,
+      { 
+        status: savedProject.status,
+        startDate: savedProject.startDate,
+        endDate: savedProject.endDate
+      }
     );
     
     return savedProject;
@@ -149,6 +165,20 @@ export class ProjectsService {
       updatedProject.tags || []
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(updatedProject._id as string),
+      updatedProject.name,
+      { 
+        status: updatedProject.status,
+        startDate: updatedProject.startDate,
+        endDate: updatedProject.endDate
+      }
+    );
+    
     return updatedProject;
   }
 
@@ -181,6 +211,16 @@ export class ProjectsService {
       { status: project.status },
       project.name,
       project.tags || []
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.DELETE,
+      EntityType.PROJECT,
+      new Types.ObjectId(id),
+      project.name,
+      { status: project.status }
     );
     
     return deletedProject;
@@ -247,6 +287,19 @@ export class ProjectsService {
       project.name
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      project.name,
+      { 
+        action: 'addResource',
+        resourceId: projectResourceDto.resourceId.toString()
+      }
+    );
+    
     return savedRelation;
   }
 
@@ -275,6 +328,19 @@ export class ProjectsService {
           resourceId: resourceId
         },
         project.name
+      );
+      
+      // Generar notificación
+      await this.notificationsService.createNotificationFromActivity(
+        peopleId,
+        ActivityAction.UPDATE,
+        EntityType.PROJECT,
+        new Types.ObjectId(projectId),
+        project.name,
+        { 
+          action: 'removeResource',
+          resourceId: resourceId
+        }
       );
     }
     
@@ -351,6 +417,19 @@ export class ProjectsService {
       project.name
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      project.name,
+      { 
+        action: 'addKnowledgeItem',
+        knowledgeItemId: projectKnowledgeDto.knowledgeItemId.toString()
+      }
+    );
+    
     return savedRelation;
   }
 
@@ -379,6 +458,19 @@ export class ProjectsService {
           knowledgeItemId: knowledgeItemId
         },
         project.name
+      );
+      
+      // Generar notificación
+      await this.notificationsService.createNotificationFromActivity(
+        peopleId,
+        ActivityAction.UPDATE,
+        EntityType.PROJECT,
+        new Types.ObjectId(projectId),
+        project.name,
+        { 
+          action: 'removeKnowledgeItem',
+          knowledgeItemId: knowledgeItemId
+        }
       );
     }
     
@@ -432,6 +524,31 @@ export class ProjectsService {
       project.name
     );
     
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      project.name,
+      { 
+        action: 'addMember',
+        memberId: memberId
+      }
+    );
+    
+    // Adicionalmente, notificar al miembro que fue añadido al proyecto
+    await this.notificationsService.create(
+      new Types.ObjectId(memberId),
+      {
+        title: 'Añadido a un proyecto',
+        message: `Has sido añadido al proyecto "${project.name}"`,
+        relatedEntityType: EntityType.PROJECT,
+        relatedEntityId: new Types.ObjectId(projectId),
+        additionalData: { projectName: project.name }
+      }
+    );
+    
     return updatedProject;
   }
 
@@ -465,6 +582,31 @@ export class ProjectsService {
         memberId: memberId
       },
       project.name
+    );
+    
+    // Generar notificación
+    await this.notificationsService.createNotificationFromActivity(
+      peopleId,
+      ActivityAction.UPDATE,
+      EntityType.PROJECT,
+      new Types.ObjectId(projectId),
+      project.name,
+      { 
+        action: 'removeMember',
+        memberId: memberId
+      }
+    );
+    
+    // Adicionalmente, notificar al miembro que fue eliminado del proyecto
+    await this.notificationsService.create(
+      new Types.ObjectId(memberId),
+      {
+        title: 'Eliminado de un proyecto',
+        message: `Has sido eliminado del proyecto "${project.name}"`,
+        relatedEntityType: EntityType.PROJECT,
+        relatedEntityId: new Types.ObjectId(projectId),
+        additionalData: { projectName: project.name }
+      }
     );
     
     return updatedProject;

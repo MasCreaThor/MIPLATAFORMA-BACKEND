@@ -5,6 +5,7 @@ import { CategoriesService } from './categories.service';
 import { CategoriesController } from './categories.controller';
 import { Category, CategorySchema } from './schemas/category.schema';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ActivityModule } from '../activity/activity.module';
       { name: Category.name, schema: CategorySchema },
     ]),
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [CategoriesController],
   providers: [CategoriesService],

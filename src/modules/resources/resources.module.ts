@@ -7,6 +7,7 @@ import { Resource, ResourceSchema } from './schemas/resource.schema';
 import { FileStorageModule } from '../file-storage/file-storage.module';
 import { TagsModule } from '../tags/tags.module';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ActivityModule } from '../activity/activity.module';
     FileStorageModule,
     TagsModule,
     ActivityModule,
+    NotificationsModule,
   ],
   controllers: [ResourcesController],
   providers: [ResourcesService],
