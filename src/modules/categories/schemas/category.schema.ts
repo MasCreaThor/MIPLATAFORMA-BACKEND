@@ -1,4 +1,3 @@
-
 // src/modules/categories/schemas/category.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
@@ -24,6 +23,9 @@ export class Category {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'People', required: true })
   peopleId: MongooseSchema.Types.ObjectId;
+  
+  @Prop({ default: false })
+  isPublic: boolean;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);

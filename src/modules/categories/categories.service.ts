@@ -48,14 +48,89 @@ export class CategoriesService {
     return savedCategory;
   }
 
+  // Método actualizado para soportar usuarios autenticados y no autenticados
+  async findAllPublic(peopleId?: Types.ObjectId): Promise<Category[]> {
+    if (peopleId) {
+      // Usuario autenticado: devolver categorías propias + públicas
+      return this.categoryModel.find({
+        $or: [
+          { peopleId },
+          { isPublic: true }
+        ]
+      }).exec();
+    } else {
+      // Usuario no autenticado: solo categorías públicas
+      return this.categoryModel.find({ isPublic: true }).exec();
+    }
+  }
+
+  // Método original mantiene compatibilidad con código existente
   async findAll(peopleId: Types.ObjectId): Promise<Category[]> {
     return this.categoryModel.find({ peopleId }).exec();
   }
 
+  // Método actualizado para soportar usuarios autenticados y no autenticados
+  async findAllRootPublic(peopleId?: Types.ObjectId): Promise<Category[]> {
+    if (peopleId) {
+      // Usuario autenticado: devolver categorías raíz propias + públicas
+      return this.categoryModel.find({
+        parentId: null,
+        $or: [
+          { peopleId },
+          { isPublic: true }
+        ]
+      }).exec();
+    } else {
+      // Usuario no autenticado: solo categorías raíz públicas
+      return this.categoryModel.find({ 
+        parentId: null,
+        isPublic: true 
+      }).exec();
+    }
+  }
+
+  // Método original mantiene compatibilidad con código existente
   async findAllRoot(peopleId: Types.ObjectId): Promise<Category[]> {
     return this.categoryModel.find({ peopleId, parentId: null }).exec();
   }
 
+  // Método actualizado para soportar usuarios autenticados y no autenticados
+  async findOnePublic(id: string, peopleId?: Types.ObjectId): Promise<Category> {
+    let query: any = { _id: id };
+    
+    if (peopleId) {
+      // Usuario autenticado: devolver categoría propia o pública
+      query.$or = [
+        { peopleId },
+        { isPublic: true }
+      ];
+    } else {
+      // Usuario no autenticado: solo categoría pública
+      query.isPublic = true;
+    }
+    
+    const category = await this.categoryModel.findOne(query).exec();
+    
+    if (!category) {
+      throw new NotFoundException(`Category with ID ${id} not found`);
+    }
+    
+    // Registrar la actividad de vista solo si hay usuario autenticado
+    if (peopleId) {
+      await this.activityService.trackActivity(
+        peopleId,
+        ActivityAction.VIEW,
+        EntityType.CATEGORY,
+        new Types.ObjectId(category._id as string),
+        { parentId: category.parentId?.toString() || null },
+        category.name
+      );
+    }
+    
+    return category;
+  }
+
+  // Método original mantiene compatibilidad con código existente
   async findOne(id: string, peopleId: Types.ObjectId): Promise<Category> {
     const category = await this.categoryModel.findOne({ 
       _id: id, 
@@ -77,6 +152,34 @@ export class CategoriesService {
     );
     
     return category;
+  }
+
+  // Método actualizado para soportar usuarios autenticados y no autenticados
+  async findChildrenPublic(id: string, peopleId?: Types.ObjectId): Promise<Category[]> {
+    if (peopleId) {
+      // Usuario autenticado: devolver categorías hijas propias + públicas
+      return this.categoryModel.find({ 
+        parentId: new Types.ObjectId(id),
+        $or: [
+          { peopleId },
+          { isPublic: true }
+        ]
+      }).exec();
+    } else {
+      // Usuario no autenticado: solo categorías hijas públicas
+      return this.categoryModel.find({ 
+        parentId: new Types.ObjectId(id),
+        isPublic: true 
+      }).exec();
+    }
+  }
+
+  // Método original mantiene compatibilidad con código existente
+  async findChildren(id: string, peopleId: Types.ObjectId): Promise<Category[]> {
+    return this.categoryModel.find({ 
+      parentId: new Types.ObjectId(id), 
+      peopleId 
+    }).exec();
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto, peopleId: Types.ObjectId): Promise<Category> {
@@ -147,12 +250,5 @@ export class CategoriesService {
     );
     
     return deletedCategory;
-  }
-
-  async findChildren(id: string, peopleId: Types.ObjectId): Promise<Category[]> {
-    return this.categoryModel.find({ 
-      parentId: new Types.ObjectId(id), 
-      peopleId 
-    }).exec();
   }
 }

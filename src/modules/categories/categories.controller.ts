@@ -20,35 +20,43 @@ export class CategoriesController {
   }
 
   @Get()
-  // No aplicamos el guardia JwtAuthGuard para permitir recuperar categorías sin autenticación
-  findAll() {
-    // Usamos un ID ficticio solo para desarrollo
-    const mockPeopleId = new Types.ObjectId();
-    return this.categoriesService.findAll(mockPeopleId);
+  findAll(@Request() req) {
+    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
+    let peopleId: Types.ObjectId | undefined = undefined;
+    if (req.user) {
+      peopleId = new Types.ObjectId(req.user.userId);
+    }
+    return this.categoriesService.findAllPublic(peopleId);
   }
 
   @Get('root')
-  // No aplicamos el guardia JwtAuthGuard para permitir recuperar categorías sin autenticación
-  findAllRoot() {
-    // Usamos un ID ficticio solo para desarrollo
-    const mockPeopleId = new Types.ObjectId();
-    return this.categoriesService.findAllRoot(mockPeopleId);
+  findAllRoot(@Request() req) {
+    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
+    let peopleId: Types.ObjectId | undefined = undefined;
+    if (req.user) {
+      peopleId = new Types.ObjectId(req.user.userId);
+    }
+    return this.categoriesService.findAllRootPublic(peopleId);
   }
 
   @Get(':id')
-  // No aplicamos el guardia JwtAuthGuard para permitir recuperar categorías sin autenticación
-  findOne(@Param('id') id: string) {
-    // Usamos un ID ficticio solo para desarrollo
-    const mockPeopleId = new Types.ObjectId();
-    return this.categoriesService.findOne(id, mockPeopleId);
+  findOne(@Param('id') id: string, @Request() req) {
+    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
+    let peopleId: Types.ObjectId | undefined = undefined;
+    if (req.user) {
+      peopleId = new Types.ObjectId(req.user.userId);
+    }
+    return this.categoriesService.findOnePublic(id, peopleId);
   }
 
   @Get(':id/children')
-  // No aplicamos el guardia JwtAuthGuard para permitir recuperar categorías sin autenticación
-  findChildren(@Param('id') id: string) {
-    // Usamos un ID ficticio solo para desarrollo
-    const mockPeopleId = new Types.ObjectId();
-    return this.categoriesService.findChildren(id, mockPeopleId);
+  findChildren(@Param('id') id: string, @Request() req) {
+    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
+    let peopleId: Types.ObjectId | undefined = undefined;
+    if (req.user) {
+      peopleId = new Types.ObjectId(req.user.userId);
+    }
+    return this.categoriesService.findChildrenPublic(id, peopleId);
   }
 
   @Patch(':id')
