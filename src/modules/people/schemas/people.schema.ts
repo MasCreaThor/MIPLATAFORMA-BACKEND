@@ -50,8 +50,10 @@ export class People {
   @Prop()
   phoneNumber: string;
 
-  @Prop()
+  @Prop({ unique: true }) // Añadimos índice único aquí
   personalEmail: string;
+
+  // Eliminamos el campo email que está causando el problema
 
   @Prop({ type: Address })
   address: Address;

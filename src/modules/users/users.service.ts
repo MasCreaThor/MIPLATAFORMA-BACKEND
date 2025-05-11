@@ -27,8 +27,8 @@ export class UsersService {
     const people = await this.peopleService.create({
       firstName: createUserDto.firstName,
       lastName: createUserDto.lastName,
-      personalEmail: createUserDto.email, // Using the same email for now
-      username: createUserDto.email.split('@')[0], // Creating username from email
+      personalEmail: createUserDto.email,
+      username: createUserDto.email.split('@')[0],
       isActive: true,
       roles: ['user'],
     });
