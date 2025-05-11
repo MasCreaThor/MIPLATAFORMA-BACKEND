@@ -16,8 +16,8 @@ export class CreatePeopleDto {
   phoneNumber?: string;
 
   @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  @IsOptional()
+  personalEmail?: string;
 
   @IsObject()
   @IsOptional()
