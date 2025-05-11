@@ -1,5 +1,5 @@
 // src/modules/categories/dto/create-category.dto.ts
-import { IsNotEmpty, IsString, IsOptional, IsMongoId } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsMongoId, IsBoolean } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class CreateCategoryDto {
@@ -22,4 +22,8 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   icon?: string;
+  
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean = false;
 }
