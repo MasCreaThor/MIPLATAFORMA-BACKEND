@@ -26,6 +26,9 @@ export class Category {
   
   @Prop({ default: false })
   isPublic: boolean;
+  
+  @Prop({ default: false })
+  isSystem: boolean;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);
