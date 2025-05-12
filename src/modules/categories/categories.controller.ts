@@ -6,6 +6,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Types } from 'mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('categories')
 export class CategoriesController {
@@ -14,49 +15,42 @@ export class CategoriesController {
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() createCategoryDto: CreateCategoryDto, @CurrentUser('userId') userId: string) {
-    // Convertir el userId a ObjectId o usar el userId directamente si tu servicio lo admite
     const peopleId = new Types.ObjectId(userId);
     return this.categoriesService.create(createCategoryDto, peopleId);
   }
 
   @Get()
-  findAll(@Request() req) {
-    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
-    let peopleId: Types.ObjectId | undefined = undefined;
-    if (req.user) {
-      peopleId = new Types.ObjectId(req.user.userId);
-    }
-    return this.categoriesService.findAllPublic(peopleId);
+  @UseGuards(JwtAuthGuard)
+  findAll(@CurrentUser('userId') userId: string) {
+    const peopleId = new Types.ObjectId(userId);
+    return this.categoriesService.findAllForUser(peopleId);
+  }
+
+  @Get('system')
+  @Public()
+  findSystemCategories() {
+    return this.categoriesService.findSystemCategories();
   }
 
   @Get('root')
-  findAllRoot(@Request() req) {
-    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
-    let peopleId: Types.ObjectId | undefined = undefined;
-    if (req.user) {
-      peopleId = new Types.ObjectId(req.user.userId);
-    }
-    return this.categoriesService.findAllRootPublic(peopleId);
+  @UseGuards(JwtAuthGuard)
+  findAllRoot(@CurrentUser('userId') userId: string) {
+    const peopleId = new Types.ObjectId(userId);
+    return this.categoriesService.findRootForUser(peopleId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Request() req) {
-    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
-    let peopleId: Types.ObjectId | undefined = undefined;
-    if (req.user) {
-      peopleId = new Types.ObjectId(req.user.userId);
-    }
-    return this.categoriesService.findOnePublic(id, peopleId);
+  @UseGuards(JwtAuthGuard)
+  findOne(@Param('id') id: string, @CurrentUser('userId') userId: string) {
+    const peopleId = new Types.ObjectId(userId);
+    return this.categoriesService.findOneForUser(id, peopleId);
   }
 
   @Get(':id/children')
-  findChildren(@Param('id') id: string, @Request() req) {
-    // Usar ID del usuario autenticado si está disponible, undefined si no lo está
-    let peopleId: Types.ObjectId | undefined = undefined;
-    if (req.user) {
-      peopleId = new Types.ObjectId(req.user.userId);
-    }
-    return this.categoriesService.findChildrenPublic(id, peopleId);
+  @UseGuards(JwtAuthGuard)
+  findChildren(@Param('id') id: string, @CurrentUser('userId') userId: string) {
+    const peopleId = new Types.ObjectId(userId);
+    return this.categoriesService.findChildrenForUser(id, peopleId);
   }
 
   @Patch(':id')
@@ -66,7 +60,6 @@ export class CategoriesController {
     @Body() updateCategoryDto: UpdateCategoryDto, 
     @CurrentUser('userId') userId: string
   ) {
-    // Convertir el userId a ObjectId o usar el userId directamente
     const peopleId = new Types.ObjectId(userId);
     return this.categoriesService.update(id, updateCategoryDto, peopleId);
   }
@@ -74,7 +67,6 @@ export class CategoriesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @CurrentUser('userId') userId: string) {
-    // Convertir el userId a ObjectId o usar el userId directamente
     const peopleId = new Types.ObjectId(userId);
     return this.categoriesService.remove(id, peopleId);
   }
